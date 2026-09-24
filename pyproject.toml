@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "predictive-feasibility-framework"
+version = "0.1.0"
+description = "Dataset-agnostic framework for pre-registered predictive feasibility studies"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scikit-learn>=1.3",
+    "scipy>=1.10",
+    "pyarrow>=14.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+feasibility = "feasibility_framework.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["feasibility_framework*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
