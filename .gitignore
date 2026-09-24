@@ -20,6 +20,10 @@ build/
 outputs/
 result.json
 
+# Toy study local artifacts (real studies commit locks/)
+examples/locks/
+examples/results/
+
 # OS
 .DS_Store
 Thumbs.db

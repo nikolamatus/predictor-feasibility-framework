@@ -217,9 +217,16 @@ def test_run_writes_result_next_to_the_study(tmp_path, capsys):
 
 
 def test_gitignore_does_not_exclude_locks():
-    text = (ROOT / ".gitignore").read_text(encoding="utf-8")
-    assert "locks/" not in text
-    assert "locks/history/" not in text
+    lines = {
+        line.strip()
+        for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+    assert "locks/" not in lines
+    assert "locks/history/" not in lines
+    assert "examples/locks/" in lines
+    assert "examples/results/" in lines
+
 
 
 def test_cli_run_and_report(tmp_path):
