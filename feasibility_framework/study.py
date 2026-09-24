@@ -66,6 +66,10 @@ class LockMismatchError(RuntimeError):
     """Raised when the current config hash does not match the lock file."""
 
 
+class LockRefusedError(RuntimeError):
+    """Raised when a lock already records a different config and amend was not requested."""
+
+
 class FeasibilityStudy(ABC):
     """Base class for one pre-registered feasibility study.
 
@@ -74,9 +78,21 @@ class FeasibilityStudy(ABC):
     There is no public method that fits a model before the EPV gate.
     """
 
-    def __init__(self, lock_dir: str | Path | None = None) -> None:
-        self.lock_dir = Path(lock_dir) if lock_dir is not None else Path("locks")
+    def __init__(
+        self,
+        lock_dir: str | Path | None = None,
+        *,
+        study_path: str | Path | None = None,
+    ) -> None:
+        self.study_path = Path(study_path).resolve() if study_path is not None else None
+        if lock_dir is not None:
+            self.lock_dir = Path(lock_dir)
+        elif self.study_path is not None:
+            self.lock_dir = self.study_path.parent / "locks"
+        else:
+            self.lock_dir = Path("locks")
         self._stage = Stage.INIT
+        self.lock_action = ""
 
     @property
     def stage(self) -> Stage:
@@ -95,28 +111,44 @@ class FeasibilityStudy(ABC):
         """Resolved from the config name so run() does not hardcode a test."""
         return get_inference_method(self.define_config().inference_method)
 
-    def lock_preregistration(self) -> Path:
-        """Write a dated, hashed lock. This is intentionally not part of run()."""
+    def lock_preregistration(self, *, amend: bool = False) -> Path:
+        """Write a dated, hashed lock. This is intentionally not part of run().
+
+        An existing lock with the same hash is left untouched. A different
+        hash is refused unless ``amend`` is true, in which case the old file
+        is moved under ``locks/history/`` and a new lock is written.
+        """
         if self._stage not in {Stage.INIT, Stage.LOCKED}:
             raise StageOrderError(
                 "Pre-registration can only be locked before a run has started."
             )
         config = self.define_config()
         config.validate()
-        self.lock_dir.mkdir(parents=True, exist_ok=True)
         path = self._lock_path(config)
-        previous: dict | None = None
+        current = config_hash(config)
         if path.is_file():
             previous = json.loads(path.read_text(encoding="utf-8"))
+            if previous.get("config_hash") == current and previous.get("study_id") == config.study_id:
+                self.lock_action = "unchanged"
+                if self._stage is Stage.INIT:
+                    self._begin(Stage.LOCKED)
+                return path
+            if not amend:
+                raise LockRefusedError(
+                    f"Lock at {path} records a different config hash. "
+                    f"Re-locking requires: feasibility lock {self._study_file()} --amend"
+                )
+            self._archive_lock(path, previous)
+            self.lock_action = "amended"
+        else:
+            self.lock_action = "created"
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
         payload = {
             "study_id": config.study_id,
             "locked_at": datetime.now(timezone.utc).isoformat(),
-            "config_hash": config_hash(config),
+            "config_hash": current,
             "config": _lock_body(config),
         }
-        if previous is not None:
-            payload["previous_hash"] = previous.get("config_hash")
-            payload["previous_locked_at"] = previous.get("locked_at")
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         if self._stage is Stage.INIT:
             self._begin(Stage.LOCKED)
@@ -223,7 +255,7 @@ class FeasibilityStudy(ABC):
         path = self._lock_path(config)
         if not path.is_file():
             raise NotLockedError(
-                f"No lock file at {path}. Call lock_preregistration() before run()."
+                f"No lock file at {path}. Run: feasibility lock {self._study_file()}"
             )
         record = json.loads(path.read_text(encoding="utf-8"))
         current = config_hash(config)
@@ -260,6 +292,24 @@ class FeasibilityStudy(ABC):
                 f"Primary source is missing outcome column {config.outcome!r}."
             )
         return frames
+
+    def _study_file(self) -> str:
+        if self.study_path is None:
+            return "<study.py>"
+        return str(self.study_path)
+
+    def _archive_lock(self, path: Path, previous: dict) -> Path:
+        history = self.lock_dir / "history"
+        history.mkdir(parents=True, exist_ok=True)
+        locked_at = str(previous.get("locked_at") or "unknown-time")
+        safe_time = locked_at.replace(":", "-")
+        dest = history / f"{safe_time}_{path.name}"
+        if dest.exists():
+            raise LockRefusedError(
+                f"Refusing to overwrite archived lock {dest}."
+            )
+        path.replace(dest)
+        return dest
 
     def _lock_path(self, config: StudyConfig) -> Path:
         safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in config.study_id)

@@ -9,8 +9,9 @@ The command-line interface is the primary way to run a study:
 ```text
 pip install -e .
 feasibility validate my_study.py
+feasibility lock my_study.py
 feasibility run my_study.py
 feasibility report result.json
 ```
 
-`run` refuses to start until `lock_preregistration()` has written a lock file for the current configuration. See `docs/architecture.md` and `examples/toy_study.py`.
+`lock` writes `locks/<study_id>.lock.json` next to `my_study.py`, wherever you invoke the command from. The same hash a second time prints `already locked, hash unchanged` and leaves the file alone. A changed config is refused until `feasibility lock my_study.py --amend`, which moves the old lock into `locks/history/` and writes a new one. `run` will not start without that lock. See `docs/architecture.md` and `examples/toy_study.py`.

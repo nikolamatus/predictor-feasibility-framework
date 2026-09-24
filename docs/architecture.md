@@ -2,7 +2,7 @@
 
 The framework calls user code. A study is a subclass of `FeasibilityStudy` with two required hooks: `define_config` and `load_data`. The engine method `run` is the only path that moves a study through ingest, linkage, the leakage guard, feature construction, the events-per-variable (EPV) gate, modeling, inference, and the decision gate.
 
-`lock_preregistration` is deliberately not inside `run`. It writes a dated JSON lock containing a SHA-256 hash of the canonical config. `run` refuses to start when that file is missing, and it refuses to start when `define_config` no longer hashes to the locked payload. Amending a floor, a block, or a composite strategy is a new conscious lock, not a silent edit.
+`lock_preregistration` is deliberately not inside `run`. The CLI command is `feasibility lock <study.py>`. It writes a dated JSON lock next to the study file, containing a SHA-256 hash of the canonical config. The same hash does not rewrite the file. A different hash is refused unless `--amend` moves the old lock into `locks/history/` (named with its original timestamp) and writes a new file. A lock is never overwritten in place. `run` refuses to start when that file is missing, and it refuses to start when `define_config` no longer hashes to the locked payload.
 
 ## Stage order
 

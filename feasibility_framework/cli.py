@@ -1,16 +1,22 @@
-"""Command line: validate a study, run it, or print a saved result."""
+"""Command line: validate, lock, run, or print a saved result."""
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import hashlib
 import json
 import sys
+import types
 from pathlib import Path
 
 from feasibility_framework.config import ConfigError
 from feasibility_framework.result import FeasibilityResult, ResultError
-from feasibility_framework.study import FeasibilityStudy, LockMismatchError, NotLockedError
+from feasibility_framework.study import (
+    FeasibilityStudy,
+    LockMismatchError,
+    LockRefusedError,
+    NotLockedError,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -20,9 +26,18 @@ def main(argv: list[str] | None = None) -> int:
     validate_parser = sub.add_parser("validate", help="Check config only. Does not read data.")
     validate_parser.add_argument("study", type=Path)
 
+    lock_parser = sub.add_parser("lock", help="Write the pre-registration lock next to the study file.")
+    lock_parser.add_argument("study", type=Path)
+    lock_parser.add_argument(
+        "--amend",
+        action="store_true",
+        help="Archive the existing lock and write a new one after a config change.",
+    )
+    lock_parser.add_argument("--lock-dir", type=Path, default=None)
+
     run_parser = sub.add_parser("run", help="Run a locked FeasibilityStudy subclass.")
     run_parser.add_argument("study", type=Path)
-    run_parser.add_argument("--lock-dir", type=Path, default=Path("locks"))
+    run_parser.add_argument("--lock-dir", type=Path, default=None)
     run_parser.add_argument("--output", type=Path, default=Path("result.json"))
 
     report_parser = sub.add_parser("report", help="Print a saved FeasibilityResult.")
@@ -31,6 +46,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "validate":
         return _validate(args.study)
+    if args.command == "lock":
+        return _lock(args.study, args.lock_dir, amend=args.amend)
     if args.command == "run":
         return _run(args.study, args.lock_dir, args.output)
     if args.command == "report":
@@ -42,11 +59,11 @@ def main(argv: list[str] | None = None) -> int:
 def load_study_class(path: Path) -> type[FeasibilityStudy]:
     if not path.is_file():
         raise FileNotFoundError(path)
-    spec = importlib.util.spec_from_file_location("user_study", path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot import study module from {path}.")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    source = path.read_text(encoding="utf-8")
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:16]
+    module = types.ModuleType(f"user_study_{digest}")
+    module.__file__ = str(path)
+    exec(compile(source, str(path), "exec"), module.__dict__)
     found = [
         obj
         for obj in vars(module).values()
@@ -73,9 +90,33 @@ def _validate(path: Path) -> int:
     return 0
 
 
-def _run(path: Path, lock_dir: Path, output: Path) -> int:
+def _open_study(path: Path, lock_dir: Path | None) -> FeasibilityStudy:
+    resolved = path.resolve()
+    study_cls = load_study_class(resolved)
+    if lock_dir is None:
+        return study_cls(study_path=resolved)
+    return study_cls(lock_dir=lock_dir, study_path=resolved)
+
+
+def _lock(path: Path, lock_dir: Path | None, *, amend: bool) -> int:
     try:
-        study = load_study_class(path)(lock_dir=lock_dir)
+        study = _open_study(path, lock_dir)
+        written = study.lock_preregistration(amend=amend)
+    except (LockRefusedError, ConfigError, ImportError, FileNotFoundError, OSError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    record = json.loads(written.read_text(encoding="utf-8"))
+    if study.lock_action == "unchanged":
+        print("already locked, hash unchanged")
+    print(written)
+    print(record["config_hash"])
+    print(record["locked_at"])
+    return 0
+
+
+def _run(path: Path, lock_dir: Path | None, output: Path) -> int:
+    try:
+        study = _open_study(path, lock_dir)
         result = study.run()
     except (NotLockedError, LockMismatchError, ConfigError, ImportError, FileNotFoundError) as exc:
         print(str(exc), file=sys.stderr)
