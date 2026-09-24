@@ -157,6 +157,9 @@ def _report(path: Path) -> int:
         dim = result.dimensionality
         print(
             f"epv: {dim.epv:.4f} (floor {dim.epv_floor:.4f}, "
+            f"basis={dim.epv_basis}, "
+            f"min_events={dim.min_cv_train_events:.4f}, "
+            f"mean_events={dim.mean_cv_train_events:.4f}, "
             f"columns {dim.n_design_columns}, clears={dim.clears_floor})"
         )
     if result.linkage is not None:

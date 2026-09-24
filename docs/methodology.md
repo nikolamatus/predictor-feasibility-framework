@@ -14,7 +14,9 @@ Predictor blocks and individual predictors each carry `confirmed: bool`. An unco
 
 ## Events per variable, before modeling
 
-EPV is the mean number of outcome events in the repeated cross-validation training folds, divided by the number of columns in the full model's design matrix after imputation and one-hot encoding. The floor is a field on the locked config. The diagnostic fits the preprocessor only.
+EPV is the number of outcome events in the repeated cross-validation training folds, divided by the number of columns in the full model's design matrix after imputation and one-hot encoding. The default, locked basis is the **minimum** training-fold event count (`epv_basis="min_fold_train_events"`). The mean fold count is still recorded for inspection. The alternative locked basis `mean_fold_train_events` uses the mean instead. The floor is a field on the locked config. The diagnostic fits the preprocessor only.
+
+One-hot encoding uses `OneHotEncoder(handle_unknown="ignore")` with **no category drop**. Every observed training level becomes one design column, including the first level. A single categorical predictor with five observed levels therefore contributes five design columns, not four.
 
 If EPV is below the floor, the run stops and returns `UNDERPOWERED`. No coefficient, holdout score, or contrast p-value is produced for that specification. Changing the encoding (for example collapsing a high-cardinality block with a registered composite) is an amendment: lock again, run again, and chain the new result onto the old one with `supersedes`. The first result stays in the record as superseded.
 

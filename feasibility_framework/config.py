@@ -76,6 +76,7 @@ class StudyConfig:
     cv_seed: int = 2021
     estimator_c: float = 1.0
     inference_method: str = "nadeau_bengio_holm"
+    epv_basis: str = "min_fold_train_events"
 
     def block_map(self) -> dict[str, PredictorBlock]:
         return {block.name: block for block in self.blocks}
@@ -225,6 +226,11 @@ class StudyConfig:
         _non_negative_int(self.cv_seed, "cv_seed", problems, minimum=0)
         if not str(self.inference_method).strip():
             problems.append("inference_method is empty.")
+        allowed_epv_bases = {"min_fold_train_events", "mean_fold_train_events"}
+        if self.epv_basis not in allowed_epv_bases:
+            problems.append(
+                f"epv_basis {self.epv_basis!r} is not one of {sorted(allowed_epv_bases)}."
+            )
         if problems:
             raise ConfigError(problems)
 

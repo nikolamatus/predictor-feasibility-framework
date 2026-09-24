@@ -49,13 +49,14 @@ def issue_clearance(report: DimensionalityReport) -> EpvClearance:
     return EpvClearance(report, _CLEARANCE_SECRET)
 
 
-def _mean_cv_counts(
+def fold_train_event_counts(
     y_train: pd.Series,
     *,
     n_splits: int,
     n_repeats: int,
     seed: int,
-) -> tuple[float, float]:
+) -> tuple[list[int], list[int]]:
+    """Return per-fold training event counts and fold sizes from repeated CV."""
     import numpy as np
     from sklearn.model_selection import RepeatedStratifiedKFold
 
@@ -73,7 +74,36 @@ def _mean_cv_counts(
     for train_idx, _val_idx in splitter.split(x_dummy, y_values):
         sizes.append(int(len(train_idx)))
         events.append(int(y_values[train_idx].sum()))
-    return float(np.mean(events)), float(np.mean(sizes))
+    return events, sizes
+
+
+def resolve_epv(
+    fold_events: list[int],
+    *,
+    n_design_columns: int,
+    epv_floor: float,
+    epv_basis: str,
+) -> tuple[float, float, float, bool]:
+    """EPV from hand-built or observed fold event counts.
+
+    Returns (epv, min_events, mean_events, clears_floor).
+    """
+    import numpy as np
+
+    if n_design_columns <= 0:
+        raise DimensionalityError("Full model has zero design columns.")
+    if not fold_events:
+        raise DimensionalityError("No CV training folds were available for EPV.")
+    min_events = float(min(fold_events))
+    mean_events = float(np.mean(fold_events))
+    if epv_basis == "min_fold_train_events":
+        used = min_events
+    elif epv_basis == "mean_fold_train_events":
+        used = mean_events
+    else:
+        raise DimensionalityError(f"Unknown epv_basis {epv_basis!r}.")
+    epv = used / n_design_columns
+    return float(epv), min_events, mean_events, bool(epv >= epv_floor)
 
 
 def assess_dimensionality(
@@ -81,7 +111,7 @@ def assess_dimensionality(
     prepared: PreparedFeatures,
     train_idx: np.ndarray,
 ) -> DimensionalityReport:
-    """EPV = mean repeated-CV training events / full-model design columns.
+    """EPV from the configured fold-event basis over full-model design columns.
 
     The preprocessor is fit on the outer training portion only. No classifier
     is fit here.
@@ -106,23 +136,28 @@ def assess_dimensionality(
     n_baseline = design_column_count(
         x_train, baseline_columns, prepared.column_treatment
     )
-    if n_full <= 0:
-        raise DimensionalityError("Full model has zero design columns.")
-    mean_events, mean_n = _mean_cv_counts(
+    fold_events, fold_sizes = fold_train_event_counts(
         y_train,
         n_splits=config.cv_splits,
         n_repeats=config.cv_repeats,
         seed=config.cv_seed,
     )
-    epv = mean_events / n_full
+    epv, min_events, mean_events, clears = resolve_epv(
+        fold_events,
+        n_design_columns=n_full,
+        epv_floor=config.epv_floor,
+        epv_basis=config.epv_basis,
+    )
     return DimensionalityReport(
         n_design_columns=n_full,
         n_baseline_columns=n_baseline,
-        mean_cv_train_n=mean_n,
+        mean_cv_train_n=float(sum(fold_sizes) / len(fold_sizes)),
         mean_cv_train_events=mean_events,
-        epv=float(epv),
+        min_cv_train_events=min_events,
+        epv=epv,
         epv_floor=float(config.epv_floor),
-        clears_floor=bool(epv >= config.epv_floor),
+        epv_basis=config.epv_basis,
+        clears_floor=clears,
         collapsed_blocks=prepared.collapsed_blocks,
     )
 

@@ -36,8 +36,10 @@ class DimensionalityReport:
     n_baseline_columns: int
     mean_cv_train_n: float
     mean_cv_train_events: float
+    min_cv_train_events: float
     epv: float
     epv_floor: float
+    epv_basis: str
     clears_floor: bool
     collapsed_blocks: tuple[str, ...] = ()
 
