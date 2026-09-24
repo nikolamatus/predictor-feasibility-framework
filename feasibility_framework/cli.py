@@ -38,7 +38,12 @@ def main(argv: list[str] | None = None) -> int:
     run_parser = sub.add_parser("run", help="Run a locked FeasibilityStudy subclass.")
     run_parser.add_argument("study", type=Path)
     run_parser.add_argument("--lock-dir", type=Path, default=None)
-    run_parser.add_argument("--output", type=Path, default=Path("result.json"))
+    run_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Result JSON path. Default: <study dir>/results/<study name>.result.json",
+    )
 
     report_parser = sub.add_parser("report", help="Print a saved FeasibilityResult.")
     report_parser.add_argument("result", type=Path)
@@ -114,17 +119,23 @@ def _lock(path: Path, lock_dir: Path | None, *, amend: bool) -> int:
     return 0
 
 
-def _run(path: Path, lock_dir: Path | None, output: Path) -> int:
+def _default_result_path(study_path: Path) -> Path:
+    resolved = study_path.resolve()
+    return resolved.parent / "results" / f"{resolved.stem}.result.json"
+
+
+def _run(path: Path, lock_dir: Path | None, output: Path | None) -> int:
     try:
         study = _open_study(path, lock_dir)
         result = study.run()
     except (NotLockedError, LockMismatchError, ConfigError, ImportError, FileNotFoundError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    output.parent.mkdir(parents=True, exist_ok=True)
-    result.to_json(output)
+    destination = output if output is not None else _default_result_path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    result.to_json(destination)
     print(f"gate: {result.gate.value}")
-    print(f"wrote {output}")
+    print(f"wrote {destination}")
     return 0
 
 

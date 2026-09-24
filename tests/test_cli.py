@@ -192,6 +192,30 @@ def test_run_from_another_cwd_uses_the_study_lock(tmp_path, capsys):
     assert (study_dir / "locks" / "tiny-synthetic.lock.json").is_file()
 
 
+def test_run_writes_result_next_to_the_study(tmp_path, capsys):
+    study_dir = tmp_path / "study"
+    study_dir.mkdir()
+    study = _write_tiny_study(study_dir)
+    assert main(["lock", str(study)]) == 0
+    capsys.readouterr()
+    expected = study_dir / "results" / "tiny_study.result.json"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    previous = Path.cwd()
+    try:
+        os.chdir(elsewhere)
+        code = main(["run", str(study)])
+    finally:
+        os.chdir(previous)
+    assert code == 0
+    assert expected.is_file()
+    assert not (elsewhere / "results").exists()
+    assert not list(elsewhere.glob("*.json"))
+    out = capsys.readouterr().out
+    assert str(expected) in out
+    assert main(["report", str(expected)]) == 0
+
+
 def test_gitignore_does_not_exclude_locks():
     text = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "locks/" not in text
