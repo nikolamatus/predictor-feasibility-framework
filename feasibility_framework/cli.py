@@ -42,7 +42,12 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         type=Path,
         default=None,
-        help="Result JSON path. Default: <study dir>/results/<study name>.result.json",
+        help="Result JSON path. Default: <study dir>/results/<stem>.<hash8>.result.json",
+    )
+    run_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing result file at the destination path.",
     )
 
     report_parser = sub.add_parser("report", help="Print a saved FeasibilityResult.")
@@ -54,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "lock":
         return _lock(args.study, args.lock_dir, amend=args.amend)
     if args.command == "run":
-        return _run(args.study, args.lock_dir, args.output)
+        return _run(args.study, args.lock_dir, args.output, force=args.force)
     if args.command == "report":
         return _report(args.result)
     parser.error(f"Unknown command {args.command}")
@@ -119,19 +124,41 @@ def _lock(path: Path, lock_dir: Path | None, *, amend: bool) -> int:
     return 0
 
 
-def _default_result_path(study_path: Path) -> Path:
+def _default_result_path(study_path: Path, config_hash_value: str) -> Path:
     resolved = study_path.resolve()
-    return resolved.parent / "results" / f"{resolved.stem}.result.json"
+    return (
+        resolved.parent
+        / "results"
+        / f"{resolved.stem}.{config_hash_value[:8]}.result.json"
+    )
 
 
-def _run(path: Path, lock_dir: Path | None, output: Path | None) -> int:
+class ResultExistsError(RuntimeError):
+    """Raised when a result path already exists and --force was not passed."""
+
+
+def _run(
+    path: Path,
+    lock_dir: Path | None,
+    output: Path | None,
+    *,
+    force: bool = False,
+) -> int:
     try:
         study = _open_study(path, lock_dir)
         result = study.run()
     except (NotLockedError, LockMismatchError, ConfigError, ImportError, FileNotFoundError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    destination = output if output is not None else _default_result_path(path)
+    destination = (
+        output if output is not None else _default_result_path(path, result.config_hash)
+    )
+    if destination.exists() and not force:
+        print(
+            f"Result file already exists at {destination}. Pass --force to overwrite.",
+            file=sys.stderr,
+        )
+        return 1
     destination.parent.mkdir(parents=True, exist_ok=True)
     result.to_json(destination)
     print(f"gate: {result.gate.value}")
@@ -149,6 +176,12 @@ def _report(path: Path) -> int:
     print(f"result: {result.result_id}")
     print(f"gate: {result.gate.value}")
     print(f"config_hash: {result.config_hash}")
+    if result.lock_path:
+        print(f"lock_path: {result.lock_path}")
+    if result.lock_config_hash:
+        print(f"lock_config_hash: {result.lock_config_hash}")
+    if result.lock_locked_at:
+        print(f"lock_locked_at: {result.lock_locked_at}")
     if result.superseded_by:
         print(f"superseded_by: {result.superseded_by}")
     if result.stop_reason:
@@ -162,6 +195,8 @@ def _report(path: Path) -> int:
             f"mean_events={dim.mean_cv_train_events:.4f}, "
             f"columns {dim.n_design_columns}, clears={dim.clears_floor})"
         )
+    if result.gate_thresholds:
+        print(f"gate_thresholds: {json.dumps(result.gate_thresholds, sort_keys=True)}")
     if result.linkage is not None:
         print(
             f"linkage: n_primary={result.linkage.n_primary} "
@@ -175,6 +210,15 @@ def _report(path: Path) -> int:
             f"full_roc={metrics.get('full_roc_auc')} "
             f"roc_lift={metrics.get('roc_lift')}"
         )
+    if result.inference:
+        print(f"inference_method: {result.inference.get('method')}")
+        for row in result.inference.get("rows") or []:
+            print(
+                "inference: "
+                f"{row.get('contrast_id')} {row.get('metric')} "
+                f"raw_p={row.get('raw_p_value')} "
+                f"holm_p={row.get('holm_adjusted_p_value')}"
+            )
     return 0
 
 

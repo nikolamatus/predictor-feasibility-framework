@@ -182,6 +182,8 @@ class FeasibilityStudy(ABC):
         )
         dimensionality = assess_dimensionality(config, prepared, train_idx)
         self._begin(Stage.EPV_CHECKED)
+        lock_meta = self._lock_metadata(config)
+        thresholds = _gate_thresholds(config)
         if not dimensionality.clears_floor:
             self._begin(Stage.UNDERPOWERED)
             return FeasibilityResult.create(
@@ -200,6 +202,10 @@ class FeasibilityStudy(ABC):
                         ],
                     }
                 },
+                gate_thresholds=thresholds,
+                lock_path=lock_meta["lock_path"],
+                lock_config_hash=lock_meta["lock_config_hash"],
+                lock_locked_at=lock_meta["lock_locked_at"],
                 stop_reason=(
                     f"EPV {dimensionality.epv:.4f} < floor {config.epv_floor:.4f}. "
                     "Stopped before modeling."
@@ -239,6 +245,10 @@ class FeasibilityStudy(ABC):
             gate_components=components,
             model_metrics=comparison.holdout,
             inference={"method": inference.method, "rows": inference.rows},
+            gate_thresholds=thresholds,
+            lock_path=lock_meta["lock_path"],
+            lock_config_hash=lock_meta["lock_config_hash"],
+            lock_locked_at=lock_meta["lock_locked_at"],
         )
 
     def _enter_modeling(self) -> None:
@@ -319,9 +329,39 @@ class FeasibilityStudy(ABC):
         path.replace(dest)
         return dest
 
+    def _lock_metadata(self, config: StudyConfig) -> dict[str, str]:
+        path = self._lock_path(config)
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if self.study_path is not None:
+            try:
+                relative = str(path.resolve().relative_to(self.study_path.parent.resolve()))
+            except ValueError:
+                relative = path.name
+        else:
+            relative = str(path)
+        return {
+            "lock_path": relative.replace("\\", "/"),
+            "lock_config_hash": str(record["config_hash"]),
+            "lock_locked_at": str(record["locked_at"]),
+        }
+
     def _lock_path(self, config: StudyConfig) -> Path:
         safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in config.study_id)
         return self.lock_dir / f"{safe}.lock.json"
+
+
+def _gate_thresholds(config: StudyConfig) -> dict:
+    return {
+        "epv_floor": config.epv_floor,
+        "epv_basis": config.epv_basis,
+        "min_usable_n": config.min_usable_n,
+        "min_outcome_events": config.min_outcome_events,
+        "min_outcome_prevalence": config.min_outcome_prevalence,
+        "min_baseline_roc_auc": config.min_baseline_roc_auc,
+        "min_incremental_roc_lift": config.min_incremental_roc_lift,
+        "min_incremental_pr_lift": config.min_incremental_pr_lift,
+        "min_present_fraction": config.min_present_fraction,
+    }
 
 
 def _lock_body(config: StudyConfig) -> dict:

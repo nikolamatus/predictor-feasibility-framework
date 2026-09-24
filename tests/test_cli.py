@@ -198,7 +198,6 @@ def test_run_writes_result_next_to_the_study(tmp_path, capsys):
     study = _write_tiny_study(study_dir)
     assert main(["lock", str(study)]) == 0
     capsys.readouterr()
-    expected = study_dir / "results" / "tiny_study.result.json"
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     previous = Path.cwd()
@@ -208,12 +207,36 @@ def test_run_writes_result_next_to_the_study(tmp_path, capsys):
     finally:
         os.chdir(previous)
     assert code == 0
-    assert expected.is_file()
+    results = list((study_dir / "results").glob("tiny_study.*.result.json"))
+    assert len(results) == 1
+    expected = results[0]
+    assert expected.name.startswith("tiny_study.")
+    assert expected.name.endswith(".result.json")
+    hash8 = expected.name[len("tiny_study.") : -len(".result.json")]
+    assert len(hash8) == 8
     assert not (elsewhere / "results").exists()
     assert not list(elsewhere.glob("*.json"))
     out = capsys.readouterr().out
     assert str(expected) in out
     assert main(["report", str(expected)]) == 0
+    report_out = capsys.readouterr().out
+    assert "inference_method:" in report_out or "gate_thresholds:" in report_out
+    assert "lock_path:" in report_out
+
+
+def test_run_refuses_overwrite_without_force(tmp_path, capsys):
+    study = _write_tiny_study(tmp_path)
+    assert main(["lock", str(study)]) == 0
+    capsys.readouterr()
+    assert main(["run", str(study)]) == 0
+    first = list((tmp_path / "results").glob("tiny_study.*.result.json"))[0]
+    before = first.read_bytes()
+    capsys.readouterr()
+    assert main(["run", str(study)]) != 0
+    assert "Pass --force" in capsys.readouterr().err
+    assert first.read_bytes() == before
+    assert main(["run", str(study), "--force"]) == 0
+    assert first.exists()
 
 
 def test_gitignore_does_not_exclude_locks():

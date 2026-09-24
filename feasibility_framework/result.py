@@ -58,6 +58,10 @@ class FeasibilityResult:
     gate_components: dict[str, Any] | None = None
     model_metrics: dict[str, Any] | None = None
     inference: dict[str, Any] | None = None
+    gate_thresholds: dict[str, Any] | None = None
+    lock_path: str | None = None
+    lock_config_hash: str | None = None
+    lock_locked_at: str | None = None
     stop_reason: str | None = None
     superseded_by: str | None = None
     synthetic: bool = False
@@ -74,6 +78,10 @@ class FeasibilityResult:
         gate_components: dict[str, Any] | None = None,
         model_metrics: dict[str, Any] | None = None,
         inference: dict[str, Any] | None = None,
+        gate_thresholds: dict[str, Any] | None = None,
+        lock_path: str | None = None,
+        lock_config_hash: str | None = None,
+        lock_locked_at: str | None = None,
         stop_reason: str | None = None,
         synthetic: bool = False,
     ) -> FeasibilityResult:
@@ -88,6 +96,10 @@ class FeasibilityResult:
             gate_components=gate_components,
             model_metrics=model_metrics,
             inference=inference,
+            gate_thresholds=gate_thresholds,
+            lock_path=lock_path,
+            lock_config_hash=lock_config_hash,
+            lock_locked_at=lock_locked_at,
             stop_reason=stop_reason,
             synthetic=synthetic,
         )
@@ -147,6 +159,10 @@ class FeasibilityResult:
             gate_components=data.get("gate_components"),
             model_metrics=data.get("model_metrics"),
             inference=data.get("inference"),
+            gate_thresholds=data.get("gate_thresholds"),
+            lock_path=data.get("lock_path"),
+            lock_config_hash=data.get("lock_config_hash"),
+            lock_locked_at=data.get("lock_locked_at"),
             stop_reason=data.get("stop_reason"),
             superseded_by=data.get("superseded_by"),
             synthetic=bool(data.get("synthetic", False)),
