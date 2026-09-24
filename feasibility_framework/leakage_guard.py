@@ -17,6 +17,11 @@ def assert_no_leakage(
 ) -> None:
     """Refuse any column that is not a confirmed pre-cutoff predictor.
 
+    Availability is compared inclusively against the cutoff: a predictor whose
+    availability date equals ``config.cutoff`` is allowed. Dates after the
+    cutoff, missing availability (unless time-invariant), and columns with no
+    specification all raise ``LeakageError``.
+
     ``derived_from`` maps an engine-built composite column to the source
     predictors it was collapsed from. Those sources are checked; the
     composite name itself is not accepted unless every source is allowed.
