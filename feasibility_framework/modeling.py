@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from feasibility_framework.config import StudyConfig
+from feasibility_framework.registries.inference import ContrastSpec
 
 if TYPE_CHECKING:
     import numpy as np
@@ -15,7 +16,6 @@ if TYPE_CHECKING:
 
     from feasibility_framework.dimensionality import EpvClearance
     from feasibility_framework.features import PreparedFeatures
-    from feasibility_framework.registries import ContrastSpec
 
 
 class ModelingError(RuntimeError):
@@ -25,8 +25,8 @@ class ModelingError(RuntimeError):
 @dataclass
 class ModelComparison:
     holdout: dict[str, float | int | None]
-    folds: Any
-    contrasts: list[Any]
+    folds: pd.DataFrame
+    contrasts: list[ContrastSpec]
 
 
 def holdout_indices(y: pd.Series, *, test_size: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -190,7 +190,6 @@ def fit_comparison(
     from sklearn.model_selection import RepeatedStratifiedKFold
 
     from feasibility_framework.dimensionality import EpvClearance
-    from feasibility_framework.registries import ContrastSpec
 
     if not isinstance(clearance, EpvClearance):
         raise ModelingError(
