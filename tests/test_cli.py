@@ -116,10 +116,10 @@ def test_lock_then_run_succeeds(tmp_path, capsys):
     locked = capsys.readouterr().out
     lock_path = tmp_path / "locks" / "tiny-synthetic.lock.json"
     assert lock_path.is_file()
-    assert str(lock_path.resolve()) in locked
     record = json.loads(lock_path.read_text(encoding="utf-8"))
-    assert record["config_hash"] in locked
-    assert record["locked_at"] in locked
+    assert f"path: {lock_path}" in locked or f"path: {lock_path.resolve()}" in locked
+    assert f"hash: {record['config_hash']}" in locked
+    assert f"locked at: {record['locked_at']}" in locked
     assert "already locked" not in locked
     assert main(["run", str(study), "--output", str(output)]) == 0
     assert output.is_file()

@@ -113,9 +113,9 @@ def _lock(path: Path, lock_dir: Path | None, *, amend: bool) -> int:
     record = json.loads(written.read_text(encoding="utf-8"))
     if study.lock_action == "unchanged":
         print("already locked, hash unchanged")
-    print(written)
-    print(record["config_hash"])
-    print(record["locked_at"])
+    print(f"path: {written}")
+    print(f"hash: {record['config_hash']}")
+    print(f"locked at: {record['locked_at']}")
     return 0
 
 
