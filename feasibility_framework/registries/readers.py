@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
-Reader = Callable[[Path], pd.DataFrame]
+    Reader = Callable[[Path], pd.DataFrame]
+else:
+    Reader = Callable[[Path], Any]
 
 _READERS: dict[str, Reader] = {}
 
@@ -50,9 +54,13 @@ def unregister_reader(name: str) -> None:
 
 @register_reader("csv")
 def read_csv(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     return pd.read_csv(path)
 
 
 @register_reader("parquet")
 def read_parquet(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     return pd.read_parquet(path)

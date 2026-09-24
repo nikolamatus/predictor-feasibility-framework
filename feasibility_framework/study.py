@@ -7,22 +7,13 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from feasibility_framework.config import StudyConfig, config_hash
-from feasibility_framework.dimensionality import (
-    ClearanceError,
-    assess_dimensionality,
-    issue_clearance,
-)
-from feasibility_framework.features import prepare_features
-from feasibility_framework.gate import decide_gate
-from feasibility_framework.leakage_guard import assert_no_leakage
-from feasibility_framework.linkage import link_sources
-from feasibility_framework.modeling import ModelingError, fit_comparison, holdout_indices
-from feasibility_framework.registries import get_inference_method
 from feasibility_framework.result import FeasibilityResult, GateVerdict
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class Stage(Enum):
@@ -109,6 +100,8 @@ class FeasibilityStudy(ABC):
     @property
     def inference_method(self):
         """Resolved from the config name so run() does not hardcode a test."""
+        from feasibility_framework.registries import get_inference_method
+
         return get_inference_method(self.define_config().inference_method)
 
     def lock_preregistration(self, *, amend: bool = False) -> Path:
@@ -156,6 +149,17 @@ class FeasibilityStudy(ABC):
 
     def run(self, path_map: dict[str, Path] | None = None) -> FeasibilityResult:
         """Execute the fixed stage order and return one FeasibilityResult."""
+        from feasibility_framework.dimensionality import (
+            ClearanceError,
+            assess_dimensionality,
+            issue_clearance,
+        )
+        from feasibility_framework.features import prepare_features
+        from feasibility_framework.gate import decide_gate
+        from feasibility_framework.leakage_guard import assert_no_leakage
+        from feasibility_framework.linkage import link_sources
+        from feasibility_framework.modeling import fit_comparison, holdout_indices
+
         config = self.define_config()
         config.validate()
         self._accept_lock(config)
@@ -272,6 +276,10 @@ class FeasibilityStudy(ABC):
             )
 
     def _ingest(self, config: StudyConfig, path_map: dict[str, Path]) -> dict[str, pd.DataFrame]:
+        import pandas as pd
+
+        from feasibility_framework.modeling import ModelingError
+
         unknown = [key for key in path_map if key not in config.sources]
         if unknown:
             raise ModelingError(

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-
-import numpy as np
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from feasibility_framework import FeasibilityStudy, Predictor, PredictorBlock, StudyConfig
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class ToyStudy(FeasibilityStudy):
@@ -75,6 +76,9 @@ class ToyStudy(FeasibilityStudy):
 
 def synthetic_cohort(n: int = 800, seed: int = 7) -> pd.DataFrame:
     """Invented rows with a fixed seed. Not observations from any dataset."""
+    import numpy as np
+    import pandas as pd
+
     rng = np.random.default_rng(seed)
     prior = rng.normal(size=n)
     signal = rng.normal(size=n)

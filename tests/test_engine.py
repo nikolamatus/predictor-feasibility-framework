@@ -53,7 +53,7 @@ def test_epv_failure_does_not_call_modeling(tmp_path, monkeypatch):
         raise AssertionError("modeling ran after an EPV failure")
 
     monkeypatch.setattr(
-        "feasibility_framework.study.fit_comparison",
+        "feasibility_framework.modeling.fit_comparison",
         fail_if_called,
     )
     study = _PowerStudy(tmp_path, epv_floor=1000)

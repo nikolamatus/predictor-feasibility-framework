@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
-Composite = Callable[[pd.DataFrame, list[str]], pd.Series]
+    Composite = Callable[[pd.DataFrame, list[str]], pd.Series]
+else:
+    Composite = Callable[..., Any]
 
 _STRATEGIES: dict[str, Composite] = {}
 
@@ -50,6 +54,8 @@ def unregister_composite(name: str) -> None:
 
 
 def _numeric_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    import pandas as pd
+
     if not columns:
         raise RegistryError("Composite strategy received no columns.")
     missing = [name for name in columns if name not in frame.columns]
@@ -61,15 +67,13 @@ def _numeric_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
 
 @register_composite("sum-score")
 def sum_score(frame: pd.DataFrame, columns: list[str]) -> pd.Series:
-    numeric = _numeric_frame(frame, columns)
-    score = numeric.sum(axis=1, min_count=1)
+    score = _numeric_frame(frame, columns).sum(axis=1, min_count=1)
     score.name = "sum_score"
     return score
 
 
 @register_composite("mean-score")
 def mean_score(frame: pd.DataFrame, columns: list[str]) -> pd.Series:
-    numeric = _numeric_frame(frame, columns)
-    score = numeric.mean(axis=1)
+    score = _numeric_frame(frame, columns).mean(axis=1)
     score.name = "mean_score"
     return score

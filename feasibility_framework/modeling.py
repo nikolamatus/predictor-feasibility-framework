@@ -3,21 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-import numpy as np
-import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
-from sklearn.model_selection import RepeatedStratifiedKFold, train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from typing import TYPE_CHECKING, Any
 
 from feasibility_framework.config import StudyConfig
-from feasibility_framework.dimensionality import EpvClearance
-from feasibility_framework.features import PreparedFeatures
-from feasibility_framework.registries import ContrastSpec
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+    from sklearn.compose import ColumnTransformer
+    from sklearn.pipeline import Pipeline
+
+    from feasibility_framework.dimensionality import EpvClearance
+    from feasibility_framework.features import PreparedFeatures
+    from feasibility_framework.registries import ContrastSpec
 
 
 class ModelingError(RuntimeError):
@@ -27,11 +25,14 @@ class ModelingError(RuntimeError):
 @dataclass
 class ModelComparison:
     holdout: dict[str, float | int | None]
-    folds: pd.DataFrame
-    contrasts: list[ContrastSpec]
+    folds: Any
+    contrasts: list[Any]
 
 
 def holdout_indices(y: pd.Series, *, test_size: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    import numpy as np
+    from sklearn.model_selection import train_test_split
+
     positions = np.arange(len(y))
     try:
         train_idx, test_idx = train_test_split(
@@ -49,6 +50,11 @@ def holdout_indices(y: pd.Series, *, test_size: float, seed: int) -> tuple[np.nd
 
 
 def _preprocessor(columns: list[str], treatment: dict[str, str]) -> ColumnTransformer:
+    from sklearn.compose import ColumnTransformer
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
     numeric = [name for name in columns if treatment[name] == "numeric"]
     categorical = [name for name in columns if treatment[name] == "categorical"]
     unknown = [name for name in columns if name not in treatment]
@@ -102,6 +108,9 @@ def design_column_count(
 
 
 def _pipeline(config: StudyConfig, columns: list[str], treatment: dict[str, str]) -> Pipeline:
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+
     return Pipeline(
         [
             ("prep", _preprocessor(columns, treatment)),
@@ -118,6 +127,9 @@ def _pipeline(config: StudyConfig, columns: list[str], treatment: dict[str, str]
 
 
 def _scores(y_true: np.ndarray, y_prob: np.ndarray) -> dict[str, float]:
+    import numpy as np
+    from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
+
     if np.unique(y_true).size < 2:
         raise ModelingError("Evaluation fold has a single outcome class.")
     return {
@@ -136,6 +148,8 @@ def _fit_predict(
     train_idx: np.ndarray,
     test_idx: np.ndarray,
 ) -> np.ndarray:
+    import numpy as np
+
     y_train = np.asarray(y.iloc[train_idx])
     if np.unique(y_train).size < 2:
         raise ModelingError("A training fold has a single outcome class.")
@@ -171,6 +185,13 @@ def fit_comparison(
     train_idx: np.ndarray,
     test_idx: np.ndarray,
 ) -> ModelComparison:
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import RepeatedStratifiedKFold
+
+    from feasibility_framework.dimensionality import EpvClearance
+    from feasibility_framework.registries import ContrastSpec
+
     if not isinstance(clearance, EpvClearance):
         raise ModelingError(
             "fit_comparison requires EPV clearance from the dimensionality gate."

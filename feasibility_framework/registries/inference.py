@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-import pandas as pd
-from scipy import stats
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
 
 _METHODS: dict[str, type] = {}
 
@@ -90,6 +91,9 @@ def nadeau_bengio_ttest(deltas: np.ndarray, test_train_ratio: float) -> NBResult
     Var = (1/n + n_test/n_train) * s^2, with s^2 the unbiased variance of
     the paired fold differences. Two-sided p from Student's t on n - 1 df.
     """
+    import numpy as np
+    from scipy import stats
+
     d = np.asarray(deltas, dtype=float)
     if d.size < 2:
         raise InferenceInputError("Need at least two paired differences.")
@@ -120,6 +124,8 @@ def nadeau_bengio_ttest(deltas: np.ndarray, test_train_ratio: float) -> NBResult
 
 def holm_adjust(p_values: Sequence[float]) -> list[float]:
     """Holm-Bonferroni adjusted p-values, returned in the input order."""
+    import numpy as np
+
     p = np.asarray(list(p_values), dtype=float)
     if p.size == 0:
         return []

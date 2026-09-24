@@ -219,3 +219,28 @@ def test_installed_entrypoint_reports_help():
     )
     assert completed.returncode == 0
     assert "config ok" in completed.stdout
+
+
+def test_validate_does_not_import_heavy_stack():
+    script = f"""
+import sys
+from feasibility_framework.cli import main
+
+code = main(["validate", r"{TOY}"])
+assert code == 0, code
+heavy = ("sklearn", "scipy", "statsmodels")
+loaded = sorted(
+    name
+    for name in sys.modules
+    if name in heavy or name.startswith(tuple(h + "." for h in heavy))
+)
+assert not loaded, loaded
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    assert completed.returncode == 0, completed.stderr + completed.stdout

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
-from sklearn.model_selection import RepeatedStratifiedKFold
+from typing import TYPE_CHECKING
 
 from feasibility_framework.config import StudyConfig
-from feasibility_framework.features import PreparedFeatures
 from feasibility_framework.result import DimensionalityReport
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
+    from feasibility_framework.features import PreparedFeatures
 
 
 class DimensionalityError(RuntimeError):
@@ -53,6 +56,9 @@ def _mean_cv_counts(
     n_repeats: int,
     seed: int,
 ) -> tuple[float, float]:
+    import numpy as np
+    from sklearn.model_selection import RepeatedStratifiedKFold
+
     if y_train.nunique() < 2:
         raise DimensionalityError("Training outcome has a single class.")
     splitter = RepeatedStratifiedKFold(
@@ -80,11 +86,12 @@ def assess_dimensionality(
     The preprocessor is fit on the outer training portion only. No classifier
     is fit here.
     """
+    from feasibility_framework.modeling import design_column_count
+
     if len(train_idx) < config.cv_splits:
         raise DimensionalityError(
             "Training portion is smaller than cv_splits. Refusing to invent an EPV."
         )
-    from feasibility_framework.modeling import design_column_count
 
     y_train = prepared.y.iloc[train_idx]
     x_train = prepared.x.iloc[train_idx]
