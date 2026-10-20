@@ -22,4 +22,6 @@ The framework enforces a study design. It does not make a weak design scientific
 
 **Confirmation is a flag, not a literature review.** `confirmed=True` records that the author is willing to lock the variable. The framework does not check a codebook.
 
+**The pre-registration lock is self-attested.** `lock_preregistration()` can only be called before `run()` reaches the modeling stage, and a changed config must be re-locked with `--amend`, which moves the prior lock into `locks/history/` under its original timestamp rather than overwriting it. That preserves a record of every lock the author made. It does not prove that the first lock was written before the author inspected the data: nothing stops someone from looking at results, editing the config, and amending the lock to match what they saw. The engine enforces order within one run; it has no way to verify that a human did not peek between runs. The amendment history turns a silent rewrite into a visible, timestamped one, which is weaker than true pre-registration but stronger than an unaudited config file. Treating the first committed lock, with its commit timestamp as external witness, as the actual pre-registration is the intended use.
+
 This repository ships the framework and a synthetic toy study. It does not fit a model to any real cohort.
