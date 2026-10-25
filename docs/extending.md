@@ -21,6 +21,22 @@ def read_fixed(path: Path) -> pd.DataFrame:
 
 `load_data` is still your hook. Call `get_reader("fixed")(path)` from that hook. The engine then checks the identifier, joins sources, and applies the leakage guard. Registering a second function under an existing name raises.
 
+### Non-file data sources
+
+`load_data(self, path_map)` only has to return `dict[str, pandas.DataFrame]`. Nothing requires those frames to come from a path. `path_map` exists for the common case of file-backed sources; a study is free to ignore it and build its frames another way, for example:
+
+```python
+def load_data(self, path_map: dict[str, Path]) -> dict[str, pd.DataFrame]:
+    import pandas as pd
+    import snowflake.connector
+
+    with snowflake.connector.connect(...) as conn:
+        primary = pd.read_sql("select ... from ...", conn)
+    return {"primary": primary}
+```
+
+The reader registry above is a convenience for files, not a constraint on where data comes from. Everything downstream, the leakage guard, linkage, EPV gate, still runs the same way regardless of how the frame was produced.
+
 ## Composite strategy
 
 Built-ins are `sum-score` and `mean-score`. A strategy receives the frame and the block's source column names, and returns one series. It runs only when a block sets `max_categorical_levels` and an observed categorical column exceeds that cap. If the cap is exceeded and `composite_strategy` is empty, feature construction raises. The strategy name is part of the locked config, so choosing one after an underpowered run means locking again.
